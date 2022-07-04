@@ -2,6 +2,10 @@
 
 ## vNext
 
+### Features
+
+- Added `cardano-node` with UTxO HD support ([PR 3005](https://github.com/input-output-hk/daedalus/pull/3005))
+
 ### Fixes
 
 - Fixed downloaded installer being left in Downloads after latest update installs ([PR 2941](https://github.com/input-output-hk/daedalus/pull/2941))
