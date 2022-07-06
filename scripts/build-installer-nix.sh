@@ -2,7 +2,13 @@
 set -e
 source "$(dirname "$0")/utils.sh"
 
+rootDir=$(dirname "$0")/..
 BUILDKITE_BUILD_NUMBER="$1"
+
+# We have to pass it somehow to the flake…
+if [ -n "$BUILDKITE_BUILD_NUMBER" ] && [ "$BUILDKITE_BUILD_NUMBER" != 0 ] ; then
+  echo "$BUILDKITE_BUILD_NUMBER" > .build-number
+fi
 
 upload_artifacts() {
     retry 5 buildkite-agent artifact upload "$@" --job "$BUILDKITE_JOB_ID"
@@ -16,16 +22,18 @@ rm -rf dist || true
 
 CLUSTERS="$(xargs echo -n < "$(dirname "$0")/../installer-clusters.cfg")"
 
+# TODO: is this split needed? not consistent with other installers (Windows):
 echo '~~~ Pre-building node_modules with nix'
-nix-build default.nix -A rawapp.deps -o node_modules.root -Q
+nix build --show-trace -L "${rootDir}#daedalus.internal.mainnet.rawapp.deps"
 
 for cluster in ${CLUSTERS}
 do
   echo '~~~ Building '"${cluster}"' installer'
-  nix-build -Q default.nix -A "wrappedBundle" --argstr cluster "${cluster}" --argstr buildNum "$BUILDKITE_BUILD_NUMBER" -o csl-daedalus
+  nix build --show-trace -L "${rootDir}#daedalus.installer.${cluster}" -o csl-daedalus
+
   if [ -n "${BUILDKITE_JOB_ID:-}" ]; then
     upload_artifacts_public csl-daedalus/daedalus*.bin
-    nix-build -A daedalus.cfg  --argstr cluster "${cluster}"
+    nix build --show-trace -L "${rootDir}#daedalus.package.${cluster}.cfg"
     cp result/etc/launcher-config.yaml  "launcher-config-${cluster}.linux.yaml"
     upload_artifacts "launcher-config-${cluster}.linux.yaml"
   fi

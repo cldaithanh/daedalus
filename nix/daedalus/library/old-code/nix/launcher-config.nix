@@ -1,4 +1,5 @@
-{ backend ? "cardano"
+{ inputs
+, backend ? "cardano"
 , network ? "staging"
 , os ? "linux"
 , cardanoLib
@@ -53,13 +54,13 @@ let
   selfnodeConfig = rec {
     useByronWallet = true;
     private = false;
-    networkConfig = import ./selfnode-config.nix;
+    networkConfig = import ./selfnode-config.nix { inherit inputs; };
     nodeConfig = networkConfig // cardanoLib.defaultLogConfig;
     consensusProtocol = networkConfig.Protocol;
-    genesisFile = ../utils/cardano/selfnode/genesis.json;
-    delegationCertificate = ../utils/cardano/selfnode/selfnode.cert;
-    signingKey = ../utils/cardano/selfnode/selfnode.key;
-    topology = ../utils/cardano/selfnode/selfnode-topology.json;
+    genesisFile = inputs.self + "/utils/cardano/selfnode/genesis.json";
+    delegationCertificate = inputs.self + "/utils/cardano/selfnode/selfnode.cert";
+    signingKey = inputs.self + "/utils/cardano/selfnode/selfnode.key";
+    topology = inputs.self + "/utils/cardano/selfnode/selfnode-topology.json";
   };
 
   # Helper function to make a path to a binary
@@ -97,12 +98,12 @@ let
   in if networkSupported then supportedNetworks.${network} else unsupported;
 
   iconPath = let
-    networkIconExists = __pathExists (../. + "/installers/icons/${network}");
+    networkIconExists = __pathExists (inputs.self + "/installers/icons/${network}");
     network' = if networkIconExists then network else "mainnet";
   in {
-    small = ../installers/icons + "/${network'}/64x64.png";
-    large = ../installers/icons + "/${network'}/1024x1024.png";
-    base = ../installers/icons + "/${network'}";
+    small = inputs.self + "/installers/icons/${network'}/64x64.png";
+    large = inputs.self + "/installers/icons/${network'}/1024x1024.png";
+    base = inputs.self + "/installers/icons/${network'}";
   };
 
   dataDir = let
@@ -204,7 +205,7 @@ let
       AlonzoGenesisFile = "genesis-alonzo.json";
     })));
     genesisFile = let
-      genesisFile'.selfnode = ../utils/cardano/selfnode/genesis.json;
+      genesisFile'.selfnode = inputs.self + "/utils/cardano/selfnode/genesis.json";
       genesisFile'.local = (__fromJSON nodeConfig).GenesisFile;
     in if (genesisOverride != null) then genesisOverride else if (network == "selfnode" || network == "local") then genesisFile'.${network} else envCfg.nodeConfig.ByronGenesisFile;
     normalTopologyFile = if network == "selfnode" then envCfg.topology else cardanoLib.mkEdgeTopology {

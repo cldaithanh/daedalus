@@ -2,7 +2,13 @@
 set -e
 source "$(dirname "$0")/utils.sh"
 
+rootDir=$(dirname "$0")/..
 BUILDKITE_BUILD_NUMBER="$1"
+
+# We have to pass it somehow to the flake…
+if [ -n "$BUILDKITE_BUILD_NUMBER" ] && [ "$BUILDKITE_BUILD_NUMBER" != 0 ] ; then
+  echo "$BUILDKITE_BUILD_NUMBER" > .build-number
+fi
 
 upload_artifacts() {
   retry 5 buildkite-agent artifact upload "$@" --job "$BUILDKITE_JOB_ID"
@@ -16,7 +22,7 @@ CLUSTERS="$(xargs echo -n < "$(dirname "$0")/../installer-clusters.cfg")"
 
 for cluster in ${CLUSTERS}; do
   echo '~~~ Building '"${cluster}"' installer'
-  nix-build default.nix -A windows-installer --arg disabledsigningKeys '{ spc = ./dummy-certs/authenticode.spc; pvk = ./dummy-certs/authenticode.pvk; }' --show-trace  --allow-unsafe-native-code-during-evaluation --argstr cluster "$cluster" --argstr buildNum "$BUILDKITE_BUILD_NUMBER" --argstr target "x86_64-windows"
+  nix build --show-trace -L "${rootDir}#daedalus-x86_64-windows.installer.${cluster}"
   if [ -n "${BUILDKITE_JOB_ID:-}" ]; then
     upload_artifacts_public result/daedalus-*-*.exe
   fi

@@ -59,7 +59,7 @@ export async function CardanoSelfnodeLauncher(
           path.join(binDir, '..', 'Resources', 'data', 'cardano-node-shelley')
         ), // Darwin installer
         // Linux installer substitutes SHELLEY_TEST_DATA in the local-cluster Bash wrapper
-        '../../utils/cardano/selfnode', // nix-shell? but nix-shell has the substitute ↑ as well… Some other scenario?
+        '../../utils/cardano/selfnode', // `nix develop`? but `nix develop` has the substitute ↑ as well… Some other scenario?
       ]);
     })();
 
@@ -110,7 +110,7 @@ export async function CardanoSelfnodeLauncher(
         },
         detached: environment.isDev, // XXX: detaching breaks Windows launching the local-cluster.exe + cardano-launcher
         // will not allow you to start another Daedalus when previous local-cluster.exe is running, especially awkward
-        // on macOS without stdout/stderr logging; I’m not sure if this is ever needed in `nix-shell`, but leaving as-is
+        // on macOS without stdout/stderr logging; I’m not sure if this is ever needed in `nix develop`, but leaving as-is
         // for now – @michalrus
 
         // allows Daedalus to exit independently of selfnode (1/3)
@@ -213,7 +213,7 @@ const setupMockTokenMetadataServer = async (
     return firstExisting('TOKEN_METADATA_REGISTRY', [
       path.resolve(path.join(binDir, 'token-metadata.json')), // Windows and Linux installers
       path.resolve(path.join(binDir, '..', 'Resources', 'token-metadata.json')), // Darwin installer
-      './utils/cardano/selfnode/token-metadata.json', // nix-shell
+      './utils/cardano/selfnode/token-metadata.json', // `nix develop`
     ]);
   })();
 

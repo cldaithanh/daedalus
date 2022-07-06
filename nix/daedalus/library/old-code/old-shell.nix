@@ -1,8 +1,8 @@
-{ system ? builtins.currentSystem
+{ system
 , config ? {}
 , nodeImplementation ? "cardano"
-, localLib ? import ./lib.nix { inherit nodeImplementation; }
-, pkgs ? import (import ./nix/sources.nix).nixpkgs { inherit system config; }
+, localLib ? ((import ./lib.nix { inherit inputs system; }) // pkgs.lib)
+, pkgs
 , cluster ? "selfnode"
 , systemStart ? null
 , autoStartBackend ? systemStart != null
@@ -14,14 +14,11 @@
 , genesisOverride ? null
 , useLocalNode ? false
 , nivOnly ? false
+, daedalusPkgs
+, inputs
 }:
 
 let
-  daedalusPkgs = import ./. {
-    inherit nodeImplementation cluster topologyOverride configOverride genesisOverride useLocalNode;
-    target = system;
-    devShell = true;
-  };
   hostPkgs = import pkgs.path { config = {}; overlays = []; };
   fullExtraArgs = walletExtraArgs ++ pkgs.lib.optional allowFaultInjection "--allow-fault-injection";
   launcherConfig' = "${daedalusPkgs.daedalus.cfg}/etc/launcher-config.yaml";
@@ -53,7 +50,7 @@ let
       daedalusPkgs.darwin-launcher
       daedalusPkgs.mock-token-metadata-server
     ] ++ (with pkgs; [
-      nix bash binutils coreutils curl gnutar
+      nixUnstable bash binutils coreutils curl gnutar
       git python27 curl jq
       nodePackages.node-gyp nodePackages.node-pre-gyp
       gnumake
@@ -88,6 +85,7 @@ let
     CLUSTER = cluster;
     NODE_EXE = "cardano-wallet";
     CLI_EXE = "cardano-cli";
+    NETWORK = daedalusPkgs.launcherConfigs.launcherConfig.networkName;
     NODE_IMPLEMENTATION = nodeImplementation;
     BUILDTYPE = "Debug";
     shellHook = let
@@ -144,7 +142,7 @@ let
 
           if [ -z "$symlinkTarget" ] ; then
             echo >&2 "error: symlink target not found: ‘${fileName}’ in ‘${dependency}’"
-            # ~exit 1~ — do not exit, let the person fix from inside `nix-shell`
+            # ~exit 1~ — do not exit, let the person fix from inside `nix develop`
           fi
 
           ${localLib.optionalString pkgs.stdenv.isLinux ''

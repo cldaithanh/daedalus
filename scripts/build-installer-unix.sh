@@ -5,9 +5,10 @@ source "$(dirname "$0")/utils.sh"
 # DEPENDENCIES (binaries should be in PATH):
 #   0. 'git'
 #   1. 'curl'
-#   2. 'nix-shell'
+#   2. 'nix'
 
-CLUSTERS="$(xargs echo -n < "$(dirname "$0")"/../installer-clusters.cfg)"
+rootDir=$(dirname "$0")/..
+CLUSTERS="$(xargs echo -n < "${rootDir}/installer-clusters.cfg")"
 
 ###
 ### Argument processing
@@ -18,13 +19,6 @@ build_id=0
 test_installer=
 code_signing_config=
 signing_config=
-
-# Parallel build options for Buildkite agents only
-if [ -n "${BUILDKITE_JOB_ID:-}" ]; then
-    nix_shell="nix-shell --no-build-output --cores 0 --max-jobs 4"
-else
-    nix_shell="nix-shell --no-build-output"
-fi
 
 case "$(uname -s)" in
         Darwin ) export OS_NAME=darwin; export os=osx;   export key=macos-3.p12;;
@@ -56,6 +50,11 @@ set -e
 echo "${verbose}"
 if test -n "${verbose}"
 then set -x
+fi
+
+# We have to pass it somehow to the flake…
+if [ -n "$build_id" ] && [ "$build_id" != 0 ] ; then
+  echo "$build_id" > .build-number
 fi
 
 if [ -f /var/lib/buildkite-agent/code-signing-config.json ]; then
@@ -97,11 +96,11 @@ function checkItnCluster() {
 
 # Build/get cardano bridge which is used by make-installer
 echo '~~~ Prebuilding cardano bridge'
-CARDANO_BRIDGE=$(nix-build --no-out-link -A daedalus-bridge --argstr nodeImplementation cardano)
+nix build -L --no-link "${rootDir}#"daedalus.internal.mainnet.daedalus-bridge
 
 pushd installers
     echo '~~~ Prebuilding dependencies for cardano-installer, quietly..'
-    $nix_shell ../default.nix -A daedalus-installer --run true || echo "Prebuild failed!"
+    nix build -L --no-link "${rootDir}#"daedalus.internal.mainnet.daedalus-installer
     echo '~~~ Building the cardano installer generator..'
 
     for cluster in ${CLUSTERS}
@@ -113,7 +112,10 @@ pushd installers
           rm -rf "${APP_NAME}"
 
           echo "Cluster type: cardano"
-          CARDANO_BRIDGE="$(nix-build ../. --no-out-link -A daedalus-bridge --argstr nodeImplementation cardano --argstr cluster "${cluster}")"
+          CARDANO_BRIDGE=$(
+            json=$(nix build --no-link --json "${rootDir}#daedalus.internal.${cluster}.daedalus-bridge") ;
+            echo "$json" | nix run "${rootDir}#"daedalus.internal.mainnet.pkgs.jq -- -r '.[0].outputs.out'
+          )
           BRIDGE_FLAG="--cardano ${CARDANO_BRIDGE}"
 
           INSTALLER_CMD=("make-installer"
@@ -124,11 +126,12 @@ pushd installers
                          "  --build-job        ${build_id}"
                          "  --cluster          ${cluster}"
                          "  --out-dir          ${APP_NAME}")
-          nix-build .. -A launcherConfigs.configFiles --argstr os macos64 --argstr cluster "${cluster}" -o cfg-files
+
+          nix build -o cfg-files -L "${rootDir}#daedalus.internal.${cluster}.launcherConfigs.configFiles"
           cp -v cfg-files/* .
           chmod -R +w .
-          echo 'Running make-installer in nix-shell'
-          $nix_shell ../shell.nix -A buildShell --run "${INSTALLER_CMD[*]}"
+          echo 'Running make-installer in Nix shell'
+          nix develop "${rootDir}#"buildShell --command sh -c "${INSTALLER_CMD[*]}"
 
           if [ -d ${APP_NAME} ]; then
                   if [ -n "${BUILDKITE_JOB_ID:-}" ]

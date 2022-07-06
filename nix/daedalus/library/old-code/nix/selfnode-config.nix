@@ -3,10 +3,12 @@
 ############### Cardano Node Configuration ###############
 ##########################################################
 
+{ inputs }:
+
 {
   ##### Locations #####
 
-  GenesisFile = ../utils/cardano/selfnode/selfnode-byron-genesis.json;
+  GenesisFile = inputs.self + "/utils/cardano/selfnode/selfnode-byron-genesis.json";
 
   ##### Core protocol parameters #####
 

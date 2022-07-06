@@ -1,4 +1,4 @@
-{ target, runCommandCC, cardano-wallet, cardano-node, cardano-shell, cardano-cli, cardano-address, lib, local-cluster ? null, mock-token-metadata-server, darwin }:
+{ inputs, target, runCommandCC, cardano-wallet, cardano-node, cardano-shell, cardano-cli, cardano-address, lib, local-cluster ? null, mock-token-metadata-server, darwin }:
 
 runCommandCC "daedalus-cardano-bridge" {
   passthru = {
@@ -24,7 +24,7 @@ runCommandCC "daedalus-cardano-bridge" {
       cp -f ${local-cluster}/bin/local-cluster .
 
     '' else if target == "x86_64-darwin" || target == "aarch64-darwin" then ''
-      # For nix-shell:
+      # For `nix develop`:
       cp -f ${local-cluster}/bin/local-cluster .
 
       # For selfnode installer:
@@ -36,7 +36,7 @@ runCommandCC "daedalus-cardano-bridge" {
     '' else abort "Unknown target: ${target}"}
 
     cp -f ${mock-token-metadata-server}/bin/* . || true
-    cp -f ${./../utils/cardano/selfnode}/token-metadata.json .
+    cp -f ${inputs.self + "/utils/cardano/selfnode"}/token-metadata.json .
   ''}
   ${lib.optionalString (target == "x86_64-linux") ''
     chmod +w -R .

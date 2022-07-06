@@ -29,7 +29,7 @@ if (!isStartedByLauncher) {
       : 'Daedalus was launched without needed configuration. Please start Daedalus using the shortcut provided by the installer.';
   } else {
     dialogMessage =
-      'Daedalus should be started using nix-shell. Find more details here: https://github.com/input-output-hk/daedalus/blob/develop/README.md';
+      'Daedalus should be started using ‘nix develop’. Find more details here: https://github.com/input-output-hk/daedalus/blob/develop/README.md';
   }
 
   try {

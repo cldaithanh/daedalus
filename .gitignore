@@ -51,6 +51,9 @@ installers/csl-daedalus/
 installers/delegation.cert
 installers/signing.key
 
+# Linux installer script output
+/csl-daedalus
+
 # temporary certs for daedalus dev
 tls/client
 tls/server

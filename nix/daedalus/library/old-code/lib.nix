@@ -1,10 +1,20 @@
-{ nodeImplementation ? "cardano" }:
+{ inputs
+, system
+}:
 
 let
-  sources = import ./nix/sources.nix;
-  iohkNix = import sources.iohk-nix { sourcesOverride = sources; };
-  nixpkgs = import sources.nixpkgs { sourcesOverride = sources; };
+
+  pkgs = import inputs.nixpkgs-src {
+    inherit system;
+    inherit (inputs.haskellNix) config;
+    overlays = [
+      inputs.haskellNix.overlay
+      inputs.iohkNix.overlays.cardano-lib
+    ];
+  };
+
   # TODO: can we use the filter in iohk-nix instead?
+  # TODO: or <https://github.com/hercules-ci/gitignore.nix>? – @michalrus
   cleanSourceFilter = with pkgs.stdenv;
     name: type: let baseName = baseNameOf (toString name); in ! (
       # Filter out .git repo
@@ -25,10 +35,10 @@ let
       # Filter out nix-build result symlinks
       (type == "symlink" && lib.hasPrefix "result" baseName)
     );
-  isDaedalus = name: false;
-  pkgs = nixpkgs.pkgs;
+
   lib = pkgs.lib;
 in
-lib // {
-  inherit sources iohkNix pkgs isDaedalus cleanSourceFilter;
+#lib //
+{ # FIXME: is `lib //` really a good idea here…? – @michalrus
+  inherit pkgs cleanSourceFilter;
 }

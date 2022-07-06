@@ -1,79 +1,82 @@
 { system ? builtins.currentSystem
-, buildNum ? null
+, buildNum ? null # unused
 }:
-let
-  daedalusPkgs = { cluster ? null }: import ./. {
-    inherit buildNum cluster;
-    target = system;
-    version = "${version}${suffix}";
-  };
-  shellEnvs = {
-    linux = import ./shell.nix { system = "x86_64-linux"; autoStartBackend = true; };
-    darwin = import ./shell.nix { system = "x86_64-darwin"; autoStartBackend = true; };
-    darwin-arm = import ./shell.nix { system = "aarch64-darwin"; autoStartBackend = true; };
-  };
-  suffix = if buildNum == null then "" else "-${toString buildNum}";
-  version = (builtins.fromJSON (builtins.readFile ./package.json)).version;
-  daedalusPkgsWithSystem = system:
-  let
-    table = {
-      x86_64-linux = import ./. { target = "x86_64-linux"; };
-      x86_64-windows = import ./. { target = "x86_64-windows"; };
-      x86_64-darwin = import ./. { target = "x86_64-darwin"; };
-      aarch64-darwin = import ./. { target = "aarch64-darwin"; };
-    };
-  in
-    table.${system};
 
-  mkPins = inputs: (daedalusPkgs {}).pkgs.runCommand "ifd-pins" {} ''
+# TODO: ask David Arnold how to idiomatically do hydra jobs with `divnix/std`
+
+let
+  flake = (import (
+    let lock = (builtins.fromJSON (builtins.readFile ./flake.lock)).nodes.flake-compat.locked; in fetchTarball {
+      url = "https://github.com/${lock.owner}/${lock.repo}/archive/${lock.rev}.tar.gz";
+      sha256 = lock.narHash;
+    }) { src =  ./.; }).defaultNix;
+
+  inherit (flake) outputs;
+
+  darwin  = outputs.x86_64-darwin.daedalus.packages.x86_64-darwin;
+  linux   = outputs.x86_64-linux.daedalus.packages.x86_64-linux;
+  windows = outputs.x86_64-linux.daedalus.packages.x86_64-windows;
+
+  inherit (outputs.${system}.daedalus.library) forEachCluster;
+
+in
+
+# XXX: I’m re-defining the pre-flake ones 1:1 for now, but many
+# probably don’t make sense anymore and need clean-up. If anything,
+# use `${arch}-${os}` everywhere instead of “darwin”/“macos”/“windows”
+# etc. – @michalrus
+
+# TODO: add `aarch64-darwin` jobs, when we have `aarch64-darwin` in Hydra
+
+forEachCluster (cluster: { daedalus.x86_64-linux = linux.internal.${cluster}.daedalus; }) //
+
+{
+
+  bridgeTable.cardano.x86_64-darwin  = darwin.internal.mainnet.bridgeTable.cardano;
+  bridgeTable.cardano.x86_64-linux   = linux.internal.mainnet.bridgeTable.cardano;
+  bridgeTable.cardano.x86_64-windows = windows.internal.mainnet.bridgeTable.cardano;
+
+  cardano-node.x86_64-darwin  = darwin.internal.mainnet.cardano-node;
+  cardano-node.x86_64-linux   = linux.internal.mainnet.cardano-node;
+  cardano-node.x86_64-windows = windows.internal.mainnet.cardano-node;
+
+  # misnomer – @michalrus
+  daedalus-installer.x86_64-darwin = darwin.internal.mainnet.daedalus-installer;
+  daedalus-installer.x86_64-linux  = linux.internal.mainnet.daedalus-installer;
+
+  # FIXME: no longer correct:
+  shellEnvs.darwin     = import ./shell.nix { system = "aarch64-darwin"; autoStartBackend = true; };
+  shellEnvs.darwin-arm = import ./shell.nix { system = "x86_64-darwin";  autoStartBackend = true; };
+  shellEnvs.linux      = import ./shell.nix { system = "x86_64-linux";   autoStartBackend = true; };
+
+  tests = linux.internal.mainnet.tests;
+
+  mono = linux.internal.mainnet.pkgs.mono;
+  wine = linux.internal.mainnet.wine;
+  wine64 = linux.internal.mainnet.wine64;
+
+  yaml2json.x86_64-darwin = darwin.internal.mainnet.yaml2json;
+  yaml2json.x86_64-linux  = linux.internal.mainnet.yaml2json;
+
+  nodejs.x86_64-darwin = darwin.internal.mainnet.nodejs;
+  nodejs.x86_64-linux  = linux.internal.mainnet.nodejs;
+
+  # below line blows up hydra with 300 GB derivations on every commit
+  # – @michael.bishop <https://github.com/input-output-hk/daedalus/commit/0ce15d03261a4e4a6fa68a1994b4ac8a7d3b3046>
+  #installer.x86_64-linux = linux.installer.mainnet;
+  #installer.x86_64-windows = windows.installer.mainnet;
+  #installer.x86_64-windows = windows.installer.mainnet;
+
+  # TODO: is this really needed? @michalrus
+  ifd-pins = let
+    inherit (linux.internal.linux.mainnet.pkgs) runCommand lib;
+    inputs = { inherit (flake.inputs) iohkNix cardano-wallet cardano-shell; };
+  in runCommand "ifd-pins" {} ''
     mkdir $out
     cd $out
     ${lib.concatMapStringsSep "\n" (input: "ln -sv ${input.value} ${input.key}") (lib.attrValues (lib.mapAttrs (key: value: { inherit key value; }) inputs))}
   '';
-  makeJobs = cluster: with daedalusPkgs { inherit cluster; }; {
-    daedalus.x86_64-linux = daedalus;
-    # below line blows up hydra with 300 GB derivations on every commit
-    #installer.x86_64-linux = wrappedBundle newBundle pkgs cluster daedalus-bridge.wallet-version;
-    #installer.x86_64-windows = (import ./. { inherit cluster; target = "x86_64-windows"; }).windows-installer;
-  };
-  wrappedBundle = newBundle: pkgs: cluster: cardanoVersion: let
-    backend = "cardano-wallet-${cardanoVersion}";
-    fn = "daedalus-${version}-${backend}-${cluster}-${system}${suffix}.bin";
-  in pkgs.runCommand fn {} ''
-    mkdir -pv $out/nix-support
-    cp ${newBundle} $out/${fn}
-    echo "file binary-dist $out/${fn}" >> $out/nix-support/hydra-build-products
-    size="$(stat $out/${fn} --printf="%s")"
-    echo installerSize $(($size / 1024 / 1024)) MB >> $out/nix-support/hydra-metrics
-  '';
-  lib = (import ./. {}).pkgs.lib;
-  clusters = lib.splitString " " (builtins.replaceStrings ["\n"] [""] (builtins.readFile ./installer-clusters.cfg));
-  mapOverArches = supportedTree: lib.mapAttrsRecursive (path: value: lib.listToAttrs (map (arch: { name = arch; value = lib.attrByPath path null (daedalusPkgsWithSystem arch); }) value)) supportedTree;
-  sources = import ./nix/sources.nix;
-in {
-  inherit shellEnvs;
-  inherit ((daedalusPkgs {}).pkgs) mono;
-  wine = (daedalusPkgs {}).wine;
-  wine64 = (daedalusPkgs {}).wine64;
-  tests = (daedalusPkgs {}).tests;
-  ifd-pins = mkPins {
-    inherit (sources) iohk-nix cardano-wallet cardano-shell;
-  };
-} // (builtins.listToAttrs (map (x: { name = x; value = makeJobs x; }) clusters))
-// (mapOverArches (let
-    allArchesNoWindows = [
-      "x86_64-linux" "x86_64-darwin"
-      # "aarch64-darwin"    # TODO: re-enable when we have `aarch64-darwin` in Hydra
-    ];
-    allArches = allArchesNoWindows ++ [ "x86_64-windows" ];
-  in {
-  daedalus-installer = allArchesNoWindows;
-  yaml2json = allArchesNoWindows;
-  nodejs = allArchesNoWindows;
-  bridgeTable = {
-    cardano = allArches;
-  };
-  cardano-node = allArches;
-})) // {
+
   recurseForDerivations = {};
+
 }
