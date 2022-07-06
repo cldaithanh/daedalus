@@ -55,6 +55,9 @@ fi
 # We have to pass it somehow to the flake…
 if [ -n "$build_id" ] && [ "$build_id" != 0 ] ; then
   echo "$build_id" > .build-number
+  if [ -n "${BUILDKITE_JOB_ID:-}" ]; then # if in real Buildkite,
+    git update-index --assume-unchanged .build-number # lie to Nix that the repo was unchanged, more impurity…
+  fi
 fi
 
 if [ -f /var/lib/buildkite-agent/code-signing-config.json ]; then

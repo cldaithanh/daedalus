@@ -15,10 +15,8 @@ export NIX_CONFIG='
   experimental-features = nix-command flakes
 '
 
-# TODO: this is rather awful – make a `nix run` script instead? So `nix run .#withNixUnstable -- ./scripts/build…`
-rootDir=$(dirname "$0")/..
-nixUnstable=$(json=$(nix build --no-link --json "${rootDir}#"daedalus.internal.mainnet.pkgs.nixUnstable) ;
-              echo "$json" | nix run "${rootDir}#"daedalus.internal.mainnet.pkgs.jq -- -r '.[0].outputs.out')
+# 9e96b1562d67a90ca2f7cfb919f1e86b76a65a2c is `nixos-22.05` on 2022-07-06
+nixUnstable=$(nix-build 'https://github.com/NixOS/nixpkgs/archive/9e96b1562d67a90ca2f7cfb919f1e86b76a65a2c.tar.gz' -A nixFlakes)
 
 PATH="$nixUnstable/bin:$PATH"
 
