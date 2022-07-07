@@ -8,9 +8,6 @@ BUILDKITE_BUILD_NUMBER="$1"
 # We have to pass it somehow to the flake…
 if [ -n "$BUILDKITE_BUILD_NUMBER" ] && [ "$BUILDKITE_BUILD_NUMBER" != 0 ] ; then
   echo "$BUILDKITE_BUILD_NUMBER" > .build-number
-  if [ -n "${BUILDKITE_JOB_ID:-}" ]; then # if in real Buildkite,
-    git update-index --assume-unchanged .build-number # lie to Nix that the repo was unchanged, more impurity…
-  fi
 fi
 
 upload_artifacts() {
