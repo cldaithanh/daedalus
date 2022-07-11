@@ -50,7 +50,7 @@ let
       daedalusPkgs.darwin-launcher
       daedalusPkgs.mock-token-metadata-server
     ] ++ (with pkgs; [
-      nixUnstable bash binutils coreutils curl gnutar
+      bash binutils coreutils curl gnutar
       git python27 curl jq
       nodePackages.node-gyp nodePackages.node-pre-gyp
       gnumake
