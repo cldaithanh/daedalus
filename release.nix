@@ -26,7 +26,7 @@ in
 # use `${arch}-${os}` everywhere instead of “darwin”/“macos”/“windows”
 # etc. – @michalrus
 
-# TODO: add `aarch64-darwin` jobs, when we have `aarch64-darwin` in Hydra
+# TODO: add/uncomment `aarch64-darwin` jobs, when we have `aarch64-darwin` in Hydra
 
 forEachCluster (cluster: { daedalus.x86_64-linux = linux.internal.${cluster}.daedalus; }) //
 
@@ -44,10 +44,13 @@ forEachCluster (cluster: { daedalus.x86_64-linux = linux.internal.${cluster}.dae
   daedalus-installer.x86_64-darwin = darwin.internal.mainnet.daedalus-installer;
   daedalus-installer.x86_64-linux  = linux.internal.mainnet.daedalus-installer;
 
-  # FIXME: no longer correct:
-  shellEnvs.darwin     = import ./shell.nix { system = "aarch64-darwin"; autoStartBackend = true; };
-  shellEnvs.darwin-arm = import ./shell.nix { system = "x86_64-darwin";  autoStartBackend = true; };
-  shellEnvs.linux      = import ./shell.nix { system = "x86_64-linux";   autoStartBackend = true; };
+  shellEnvs.darwin     = outputs.devShells.x86_64-darwin.mainnet;
+  #shellEnvs.darwin-arm = outputs.devShells.aarch64-darwin.mainnet;
+  shellEnvs.linux      = outputs.devShells.x86_64-linux.mainnet;
+
+  # Only used by (impure) Darwin installer build script
+  buildShell.darwin     = outputs.devShells.x86_64-darwin.buildShell;
+  #buildShell.darwin-arm = outputs.devShells.aarch64-darwin.buildShell;
 
   tests = linux.internal.mainnet.tests;
 
